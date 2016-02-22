@@ -21,7 +21,6 @@ package it.unibz.krdb.obda.owlrefplatform.core.abox;
  */
 
 import it.unibz.krdb.obda.model.BNode;
-import it.unibz.krdb.obda.model.CQIE;
 import it.unibz.krdb.obda.model.Function;
 import it.unibz.krdb.obda.model.OBDADataFactory;
 import it.unibz.krdb.obda.model.OBDAException;
@@ -37,13 +36,11 @@ import it.unibz.krdb.obda.ontology.Assertion;
 import it.unibz.krdb.obda.ontology.ClassExpression;
 import it.unibz.krdb.obda.ontology.DataPropertyAssertion;
 import it.unibz.krdb.obda.ontology.DataPropertyExpression;
+import it.unibz.krdb.obda.ontology.ImmutableOntologyVocabulary;
 import it.unibz.krdb.obda.ontology.ObjectPropertyAssertion;
 import it.unibz.krdb.obda.ontology.ObjectPropertyExpression;
 import it.unibz.krdb.obda.ontology.ClassAssertion;
 import it.unibz.krdb.obda.ontology.OClass;
-import it.unibz.krdb.obda.ontology.OntologyFactory;
-import it.unibz.krdb.obda.ontology.impl.OntologyFactoryImpl;
-import it.unibz.krdb.obda.ontology.impl.OntologyVocabularyImpl;
 import it.unibz.krdb.obda.owlrefplatform.core.dagjgrapht.Equivalences;
 import it.unibz.krdb.obda.owlrefplatform.core.dagjgrapht.EquivalencesDAG;
 import it.unibz.krdb.obda.owlrefplatform.core.dagjgrapht.Interval;
@@ -61,6 +58,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -261,11 +259,11 @@ public class RDBMSSIRepositoryManager implements Serializable {
 	
 
 	private static final OBDADataFactory dfac = OBDADataFactoryImpl.getInstance();
-	private static final OntologyFactory ofac = OntologyFactoryImpl.getInstance();
 	
 	private final SemanticIndexURIMap uriMap = new SemanticIndexURIMap();
 	
 	private final TBoxReasoner reasonerDag;
+	private final ImmutableOntologyVocabulary voc;
 	
 	private SemanticIndexCache cacheSI;
 	
@@ -275,8 +273,9 @@ public class RDBMSSIRepositoryManager implements Serializable {
 	
 	private final List<RepositoryChangedListener> changeList = new LinkedList<>();
 
-	public RDBMSSIRepositoryManager(TBoxReasoner reasonerDag) {
+	public RDBMSSIRepositoryManager(TBoxReasoner reasonerDag, ImmutableOntologyVocabulary voc) {
 		this.reasonerDag = reasonerDag;
+		this.voc = voc;
 	}
 
 	public void generateMetadata() {
@@ -368,6 +367,9 @@ public class RDBMSSIRepositoryManager implements Serializable {
 	}
 
 	public int insertData(Connection conn, Iterator<Assertion> data, int commitLimit, int batchLimit) throws SQLException {
+		
+		//EquivalentTriplePredicateIterator data = new EquivalentTriplePredicateIterator(sData, reasonerDag);
+		
 		log.debug("Inserting data into DB");
 
 		// The precondition for the limit number must be greater or equal to one.
@@ -504,9 +506,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 		if (ope0.isInverse()) 
 			throw new RuntimeException("INVERSE PROPERTIES ARE NOT SUPPORTED IN ABOX:" + ax);
 		
-		// TODO: could use EquivalentTriplePredicateIterator instead
-		
-		ObjectPropertyExpression ope = reasonerDag.getObjectPropertyDAG().getVertex(ope0).getRepresentative();
+		ObjectPropertyExpression ope = reasonerDag.getObjectPropertyDAG().getCanonicalForm(ope0);
 				
 		ObjectConstant o1, o2;
 		if (ope.isInverse()) {
@@ -551,7 +551,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 
 		// replace the property by its canonical representative 
 		DataPropertyExpression dpe0 = ax.getProperty();
-		DataPropertyExpression dpe = reasonerDag.getDataPropertyDAG().getVertex(dpe0).getRepresentative();		
+		DataPropertyExpression dpe = reasonerDag.getDataPropertyDAG().getCanonicalForm(dpe0);		
 		int idx = cacheSI.getEntry(dpe).getIndex();
 		
 		ObjectConstant subject = ax.getSubject();
@@ -634,7 +634,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 		
 		// replace concept by the canonical representative (which must be a concept name)
 		OClass concept0 = ax.getConcept();
-		OClass concept = (OClass)reasonerDag.getClassDAG().getVertex(concept0).getRepresentative();	
+		OClass concept = (OClass)reasonerDag.getClassDAG().getCanonicalForm(concept0);	
 		int conceptIndex = cacheSI.getEntry(concept).getIndex();	
 
 		ObjectConstant c1 = ax.getIndividual();
@@ -715,7 +715,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 	
 	private void setIndex(String iri, int type, int idx) {
 		if (type == CLASS_TYPE) {
-			OClass c = ofac.createClass(iri);
+			OClass c = voc.getClass(iri);
 			if (reasonerDag.getClassDAG().getVertex(c) == null) 
 				throw new RuntimeException("UNKNOWN CLASS: " + iri);
 			
@@ -725,8 +725,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 			cacheSI.setIndex(c, idx);
 		}
 		else {
-			ObjectPropertyExpression ope = ofac.createObjectProperty(iri);
-			if (reasonerDag.getObjectPropertyDAG().getVertex(ope) != null) {
+			if (voc.containsObjectProperty(iri)) { // reasonerDag.getObjectPropertyDAG().getVertex(ope) != null
 				//
 				// a bit elaborate logic is a consequence of using the same type for
 				// both object and data properties (which can have the same name)
@@ -736,8 +735,9 @@ public class RDBMSSIRepositoryManager implements Serializable {
 				// and the second occurrence is a datatype property
 				// (here we use the fact that the query result is sorted by idx)
 				//
+				ObjectPropertyExpression ope = voc.getObjectProperty(iri);
 				if (cacheSI.getEntry(ope) != null)  {
-					DataPropertyExpression dpe = ofac.createDataProperty(iri);
+					DataPropertyExpression dpe = voc.getDataProperty(iri);
 					if (reasonerDag.getDataPropertyDAG().getVertex(dpe) != null) {
 						if (cacheSI.getEntry(dpe) != null)
 							throw new RuntimeException("DUPLICATE PROPERTY: " + iri);
@@ -751,7 +751,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 					cacheSI.setIndex(ope, idx);
 			}
 			else {
-				DataPropertyExpression dpe = ofac.createDataProperty(iri);
+				DataPropertyExpression dpe = voc.getDataProperty(iri);
 				if (reasonerDag.getDataPropertyDAG().getVertex(dpe) != null) {
 					if (cacheSI.getEntry(dpe) != null)
 						throw new RuntimeException("DUPLICATE PROPERTY: " + iri);
@@ -768,18 +768,18 @@ public class RDBMSSIRepositoryManager implements Serializable {
 		
 		SemanticIndexRange range;
 		if (type == CLASS_TYPE) {
-			OClass c = ofac.createClass(iri);
+			OClass c = voc.getClass(iri);
 			range = cacheSI.getEntry(c);
 		}
 		else {
 			Interval interval = intervals.get(0);
 			// if the first interval is within object property indexes
 			if (interval.getEnd() <= maxObjectPropertyIndex) {
-				ObjectPropertyExpression ope = ofac.createObjectProperty(iri);
+				ObjectPropertyExpression ope = voc.getObjectProperty(iri);
 				range = cacheSI.getEntry(ope);
 			}
 			else {
-				DataPropertyExpression dpe = ofac.createDataProperty(iri);
+				DataPropertyExpression dpe = voc.getDataProperty(iri);
 				range = cacheSI.getEntry(dpe);
 			}
 		}
@@ -893,9 +893,8 @@ public class RDBMSSIRepositoryManager implements Serializable {
 			if (ope.isInverse()) 
 				continue;
 			
-			// We need to make sure we make no mappings for Auxiliary roles
-			// introduced by the Ontology translation process.
-			if (OntologyVocabularyImpl.isAuxiliaryProperty(ope)) 
+			// no mappings for auxiliary roles, which are introduced by the ontology translation process
+			if (!voc.containsObjectProperty(ope.getName())) 
 				continue;
 
 			SemanticIndexRange range = cacheSI.getEntry(ope);
@@ -922,8 +921,8 @@ public class RDBMSSIRepositoryManager implements Serializable {
 					continue;
 				
 				String sourceQuery = view.getSELECT(intervalsSqlFilter);
-				CQIE targetQuery = constructTargetQuery(ope.getPredicate(), view.getId().getType1(), view.getId().getType2());
-				OBDAMappingAxiom basicmapping = dfac.getRDBMSMappingAxiom(sourceQuery, targetQuery);
+				List<Function> targetQuery = constructTargetQuery(ope.getPredicate(), view.getId().getType1(), view.getId().getType2());
+				OBDAMappingAxiom basicmapping = dfac.getRDBMSMappingAxiom(dfac.getSQLQuery(sourceQuery), targetQuery);
 				result.add(basicmapping);		
 			}
 		}
@@ -932,9 +931,8 @@ public class RDBMSSIRepositoryManager implements Serializable {
 
 			DataPropertyExpression dpe = set.getRepresentative();
 			
-			// We need to make sure we make no mappings for Auxiliary roles
-			// introduced by the Ontology translation process.
-			if (OntologyVocabularyImpl.isAuxiliaryProperty(dpe)) 
+			// no mappings for auxiliary roles, which are introduced by the ontology translation process
+			if (!voc.containsDataProperty(dpe.getName())) 
 				continue;
 			
 			SemanticIndexRange range = cacheSI.getEntry(dpe);
@@ -961,8 +959,8 @@ public class RDBMSSIRepositoryManager implements Serializable {
 					continue;
 				
 				String sourceQuery = view.getSELECT(intervalsSqlFilter);
-				CQIE targetQuery = constructTargetQuery(dpe.getPredicate(), view.getId().getType1(), view.getId().getType2());
-				OBDAMappingAxiom basicmapping = dfac.getRDBMSMappingAxiom(sourceQuery, targetQuery);
+				List<Function> targetQuery = constructTargetQuery(dpe.getPredicate(), view.getId().getType1(), view.getId().getType2());
+				OBDAMappingAxiom basicmapping = dfac.getRDBMSMappingAxiom(dfac.getSQLQuery(sourceQuery), targetQuery);
 				result.add(basicmapping);			
 			}
 		}
@@ -993,8 +991,8 @@ public class RDBMSSIRepositoryManager implements Serializable {
 					continue;
 				
 				String sourceQuery = view.getSELECT(intervalsSqlFilter);
-				CQIE targetQuery = constructTargetQuery(classNode.getPredicate(), view.getId().getType1());
-				OBDAMappingAxiom basicmapping = dfac.getRDBMSMappingAxiom(sourceQuery, targetQuery);
+				List<Function> targetQuery = constructTargetQuery(classNode.getPredicate(), view.getId().getType1());
+				OBDAMappingAxiom basicmapping = dfac.getRDBMSMappingAxiom(dfac.getSQLQuery(sourceQuery), targetQuery);
 				result.add(basicmapping);
 			}
 		}
@@ -1034,12 +1032,12 @@ public class RDBMSSIRepositoryManager implements Serializable {
 	}
 
 	
-	private CQIE constructTargetQuery(Predicate predicate, COL_TYPE type) {
+	private List<Function> constructTargetQuery(Predicate predicate, COL_TYPE type) {
 
 		Variable X = dfac.getVariable("X");
 
-		Predicate headPredicate = dfac.getPredicate("m", new COL_TYPE[] { COL_TYPE.OBJECT });
-		Function head = dfac.getFunction(headPredicate, X);
+		//Predicate headPredicate = dfac.getPredicate("m", new COL_TYPE[] { COL_TYPE.OBJECT });
+		//Function head = dfac.getFunction(headPredicate, X);
 
 		Function subjectTerm;
 		if (type == COL_TYPE.OBJECT) 
@@ -1050,17 +1048,17 @@ public class RDBMSSIRepositoryManager implements Serializable {
 		}
 		
 		Function body = dfac.getFunction(predicate, subjectTerm);
-		return dfac.getCQIE(head, body);
+		return Collections.singletonList(body);
 	}
 	
 	
-	private CQIE constructTargetQuery(Predicate predicate, COL_TYPE type1, COL_TYPE type2) {
+	private List<Function> constructTargetQuery(Predicate predicate, COL_TYPE type1, COL_TYPE type2) {
 
 		Variable X = dfac.getVariable("X");
 		Variable Y = dfac.getVariable("Y");
 
-		Predicate headPredicate = dfac.getPredicate("m", new COL_TYPE[] { COL_TYPE.STRING, COL_TYPE.OBJECT });
-		Function head = dfac.getFunction(headPredicate, X, Y);
+		//Predicate headPredicate = dfac.getPredicate("m", new COL_TYPE[] { COL_TYPE.STRING, COL_TYPE.OBJECT });
+		//Function head = dfac.getFunction(headPredicate, X, Y);
 
 		Function subjectTerm;
 		if (type1 == COL_TYPE.OBJECT) 
@@ -1091,7 +1089,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 		}
 
 		Function body = dfac.getFunction(predicate, subjectTerm, objectTerm);
-		return dfac.getCQIE(head, body);
+		return Collections.singletonList(body);
 	}
 
 	
@@ -1165,19 +1163,19 @@ public class RDBMSSIRepositoryManager implements Serializable {
 			// inserting index data for classes and properties 
 			try (PreparedStatement stm = conn.prepareStatement(indexTable.getINSERT("?, ?, ?"))) {
 				for (Entry<OClass,SemanticIndexRange> concept : cacheSI.getClassIndexEntries()) {
-					stm.setString(1, concept.getKey().getPredicate().getName());
+					stm.setString(1, concept.getKey().getName());
 					stm.setInt(2, concept.getValue().getIndex());
 					stm.setInt(3, CLASS_TYPE);
 					stm.addBatch();
 				}
 				for (Entry<ObjectPropertyExpression, SemanticIndexRange> role : cacheSI.getObjectPropertyIndexEntries()) {
-					stm.setString(1, role.getKey().getPredicate().getName());
+					stm.setString(1, role.getKey().getName());
 					stm.setInt(2, role.getValue().getIndex());
 					stm.setInt(3, ROLE_TYPE);
 					stm.addBatch();
 				}
 				for (Entry<DataPropertyExpression, SemanticIndexRange> role : cacheSI.getDataPropertyIndexEntries()) {
-					stm.setString(1, role.getKey().getPredicate().getName());
+					stm.setString(1, role.getKey().getName());
 					stm.setInt(2, role.getValue().getIndex());
 					stm.setInt(3, ROLE_TYPE);
 					stm.addBatch();
@@ -1189,7 +1187,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 			try (PreparedStatement stm = conn.prepareStatement(intervalTable.getINSERT("?, ?, ?, ?"))) {
 				for (Entry<OClass,SemanticIndexRange> concept : cacheSI.getClassIndexEntries()) {
 					for (Interval it : concept.getValue().getIntervals()) {
-						stm.setString(1, concept.getKey().getPredicate().getName());
+						stm.setString(1, concept.getKey().getName());
 						stm.setInt(2, it.getStart());
 						stm.setInt(3, it.getEnd());
 						stm.setInt(4, CLASS_TYPE);
@@ -1198,7 +1196,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 				}
 				for (Entry<ObjectPropertyExpression, SemanticIndexRange> role : cacheSI.getObjectPropertyIndexEntries()) {
 					for (Interval it : role.getValue().getIntervals()) {
-						stm.setString(1, role.getKey().getPredicate().getName());
+						stm.setString(1, role.getKey().getName());
 						stm.setInt(2, it.getStart());
 						stm.setInt(3, it.getEnd());
 						stm.setInt(4, ROLE_TYPE);
@@ -1207,7 +1205,7 @@ public class RDBMSSIRepositoryManager implements Serializable {
 				}
 				for (Entry<DataPropertyExpression, SemanticIndexRange> role : cacheSI.getDataPropertyIndexEntries()) {
 					for (Interval it : role.getValue().getIntervals()) {
-						stm.setString(1, role.getKey().getPredicate().getName());
+						stm.setString(1, role.getKey().getName());
 						stm.setInt(2, it.getStart());
 						stm.setInt(3, it.getEnd());
 						stm.setInt(4, ROLE_TYPE);

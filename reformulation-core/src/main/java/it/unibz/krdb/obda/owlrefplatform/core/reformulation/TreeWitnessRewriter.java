@@ -30,6 +30,7 @@ import it.unibz.krdb.obda.model.Variable;
 import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.ontology.ClassExpression;
 import it.unibz.krdb.obda.ontology.DataPropertyExpression;
+import it.unibz.krdb.obda.ontology.ImmutableOntologyVocabulary;
 import it.unibz.krdb.obda.ontology.OClass;
 import it.unibz.krdb.obda.ontology.ObjectPropertyExpression;
 import it.unibz.krdb.obda.ontology.ObjectSomeValuesFrom;
@@ -63,15 +64,19 @@ public class TreeWitnessRewriter implements QueryRewriter {
 	private static final Logger log = LoggerFactory.getLogger(TreeWitnessRewriter.class);
 
 	private TBoxReasoner reasoner;
+	private ImmutableOntologyVocabulary voc;
 	private CQContainmentCheckUnderLIDs dataDependenciesCQC;
+	private LinearInclusionDependencies sigma;
 	
 	private Collection<TreeWitnessGenerator> generators;
 	
 	@Override
-	public void setTBox(TBoxReasoner reasoner, LinearInclusionDependencies sigma) {
+	public void setTBox(TBoxReasoner reasoner, ImmutableOntologyVocabulary voc, LinearInclusionDependencies sigma) {
 		double startime = System.currentTimeMillis();
 
 		this.reasoner = reasoner;
+		this.voc = voc;
+		this.sigma = sigma;
 		
 		dataDependenciesCQC = new CQContainmentCheckUnderLIDs(sigma);
 		
@@ -147,7 +152,7 @@ public class TreeWitnessRewriter implements QueryRewriter {
 		List<CQIE> outputRules = new LinkedList<>();	
 		String headURI = headAtom.getFunctionSymbol().getName();
 		
-		TreeWitnessSet tws = TreeWitnessSet.getTreeWitnesses(cc, reasoner, generators);
+		TreeWitnessSet tws = TreeWitnessSet.getTreeWitnesses(cc, reasoner, voc, generators);
 
 		if (cc.hasNoFreeTerms()) {  
 			if (!cc.isDegenerate() || cc.getLoop() != null) 
@@ -332,6 +337,8 @@ public class TreeWitnessRewriter implements QueryRewriter {
 			CQCUtilities.removeContainedQueries(outputRules, dataDependenciesCQC);
 		
 		DatalogProgram output = fac.getDatalogProgram(dp.getQueryModifiers(), outputRules);
+		for (CQIE cq : output.getRules())
+			CQCUtilities.optimizeQueryWithSigmaRules(cq.getBody(), sigma);
 
 		double endtime = System.currentTimeMillis();
 		double tm = (endtime - startime) / 1000;

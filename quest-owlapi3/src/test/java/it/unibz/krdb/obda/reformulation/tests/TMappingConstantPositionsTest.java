@@ -26,11 +26,12 @@ import it.unibz.krdb.obda.model.OBDAModel;
 import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestConstants;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestPreferences;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWL;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLConnection;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLFactory;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLResultSet;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLStatement;
+import it.unibz.krdb.obda.owlrefplatform.owlapi3.*;
+import junit.framework.TestCase;
+import org.junit.Test;
+import org.semanticweb.owlapi.apibinding.OWLManager;
+import org.semanticweb.owlapi.model.OWLOntology;
+import org.semanticweb.owlapi.model.OWLOntologyManager;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -41,14 +42,6 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
-
-import junit.framework.TestCase;
-
-import org.junit.Test;
-import org.semanticweb.owlapi.apibinding.OWLManager;
-import org.semanticweb.owlapi.model.OWLOntology;
-import org.semanticweb.owlapi.model.OWLOntologyManager;
-import org.semanticweb.owlapi.reasoner.SimpleConfiguration;
 
 /***
  */
@@ -137,13 +130,10 @@ public class TMappingConstantPositionsTest extends TestCase {
 
 		// Creating a new instance of the reasoner
 		QuestOWLFactory factory = new QuestOWLFactory();
-		factory.setOBDAController(obdaModel);
-
-		factory.setPreferenceHolder(p);
-
-		QuestOWL reasoner = factory.createReasoner(ontology, new SimpleConfiguration());
-
-		System.out.println(reasoner.getQuestInstance().getUnfolder().getRules());
+        QuestOWLConfiguration config = QuestOWLConfiguration.builder().obdaModel(obdaModel).build();
+        QuestOWL reasoner = factory.createReasoner(ontology, config);
+        
+		//System.out.println(reasoner.getQuestInstance().getUnfolder().getRules());
 		
 		// Now we are ready for querying
 		QuestOWLConnection conn = reasoner.getConnection();
@@ -171,7 +161,6 @@ public class TMappingConstantPositionsTest extends TestCase {
 		QuestPreferences p = new QuestPreferences();
 		p.setCurrentValueOf(QuestPreferences.ABOX_MODE, QuestConstants.VIRTUAL);
 		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_EQUIVALENCES, "true");
-		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_TBOX_SIGMA, "true");
 
 		runTests(p);
 	}
@@ -182,7 +171,6 @@ public class TMappingConstantPositionsTest extends TestCase {
 		QuestPreferences p = new QuestPreferences();
 		p.setCurrentValueOf(QuestPreferences.ABOX_MODE, QuestConstants.CLASSIC);
 		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_EQUIVALENCES, "true");
-		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_TBOX_SIGMA, "true");
 		p.setCurrentValueOf(QuestPreferences.OBTAIN_FROM_MAPPINGS, "true");
 
 		runTests(p);

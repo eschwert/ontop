@@ -34,7 +34,7 @@ public interface OBDADataFactory extends Serializable {
 	
 	public DatatypeFactory getDatatypeFactory();
 
-	public CQIE getCQIE(Function head, Function... body );
+	public CQIE getCQIE(Function head, Function... body);
 	
 	public CQIE getCQIE(Function head, List<Function> body);
 	
@@ -123,14 +123,6 @@ public interface OBDADataFactory extends Serializable {
 
 	public Function getFunctionEQ(Term firstTerm, Term secondTerm);
 
-	public Function getFunctionGTE(Term firstTerm, Term secondTerm);
-
-	public Function getFunctionGT(Term firstTerm, Term secondTerm);
-
-	public Function getFunctionLTE(Term firstTerm, Term secondTerm);
-
-	public Function getFunctionLT(Term firstTerm, Term secondTerm);
-
 	public Function getFunctionNEQ(Term firstTerm, Term secondTerm);
 
 	public Function getFunctionNOT(Term term);
@@ -147,27 +139,26 @@ public interface OBDADataFactory extends Serializable {
 
 	public Function getLANGMATCHESFunction(Term term1, Term term2);
 	
-	public Function getFunctionLike(Term term1, Term term2);
+	// ROMAN (23 Dec 2015): LIKE comes only from mappings
+	public Function getSQLFunctionLike(Term term1, Term term2);
 	
 	public Function getFunctionRegex(Term term1, Term term2, Term term3);
 	
 	public Function getFunctionReplace(Term term1, Term term2, Term term3);
 	
-
-	/*
-	 * Numerical arithmethic functions
-	 */
-
-	public Function getFunctionMinus(Term term1);
-
-	public Function getFunctionAdd(Term term1, Term term2);
-
-	public Function getFunctionSubstract(Term term1, Term term2);
-
-	public Function getFunctionMultiply(Term term1, Term term2);
+	/* Functions on strings */
 
     public Function getFunctionConcat(Term term1, Term term2);
+    
+ // added by Nika: 
+    
+	public Function getFunctionSubstring(Term term1, Term term2, Term term3);
+
+	public Function getFunctionSubstring(Term term1, Term term2);
+
 	
+
+
 	/*
 	 * Casting values cast(source-value AS destination-type)
 	 */
@@ -285,24 +276,18 @@ public interface OBDADataFactory extends Serializable {
 	public Variable getVariable(String name);
 	
 	
+	/* OBDA mapping axioms */
+	
+	public OBDAMappingAxiom getRDBMSMappingAxiom(String id, OBDASQLQuery sourceQuery, List<Function> targetQuery);
 
-	/**
-	 * Construct a {@link Variable} object with empty name.
-	 * 
-	 * @return the variable object.
-	 */
-//	public Variable getVariableNondistinguished();
-
-	public OBDARDBMappingAxiom getRDBMSMappingAxiom(String id, OBDAQuery sourceQuery, OBDAQuery targetQuery);
-
-	public OBDARDBMappingAxiom getRDBMSMappingAxiom(String id, String sql, OBDAQuery targetQuery);
-
-	public OBDARDBMappingAxiom getRDBMSMappingAxiom(String sql, OBDAQuery targetQuery);
+	public OBDAMappingAxiom getRDBMSMappingAxiom(OBDASQLQuery sourceQuery, List<Function> targetQuery);
 
 	public OBDASQLQuery getSQLQuery(String query);
 
+	/* SPARQL meta-predicates */
 	
-	public Function getSPARQLJoin(Term t1, Term t2);
+	public Function getSPARQLJoin(Function t1, Function t2);
 
-	public Function getSPARQLLeftJoin(Term t1, Term t2);
+	public Function getSPARQLLeftJoin(Function t1, Function t2);
+
 }

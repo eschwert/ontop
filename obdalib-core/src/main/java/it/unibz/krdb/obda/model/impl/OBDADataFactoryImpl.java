@@ -25,7 +25,6 @@ import it.unibz.krdb.obda.model.*;
 import it.unibz.krdb.obda.model.Predicate.COL_TYPE;
 import it.unibz.krdb.obda.utils.IDGenerator;
 import it.unibz.krdb.obda.utils.JdbcTypeMapper;
-
 import org.openrdf.model.ValueFactory;
 import org.openrdf.model.impl.ValueFactoryImpl;
 
@@ -105,7 +104,7 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 	}
 
 	public Predicate getDataPropertyPredicate(String name) {
-		return new PredicateImpl(name, 2, new COL_TYPE[] { COL_TYPE.OBJECT, COL_TYPE.LITERAL }); 
+		return new PredicateImpl(name, 2, new COL_TYPE[] { COL_TYPE.OBJECT, COL_TYPE.LITERAL });
 	}
 	public Predicate getDataPropertyPredicate(String name, COL_TYPE type) {
 		return new PredicateImpl(name, 2, new COL_TYPE[] { COL_TYPE.OBJECT, type }); // COL_TYPE.LITERAL
@@ -223,24 +222,19 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 	
 
 	@Override
-	public RDBMSMappingAxiomImpl getRDBMSMappingAxiom(String id, OBDAQuery sourceQuery, OBDAQuery targetQuery) {
+	public OBDAMappingAxiom getRDBMSMappingAxiom(String id, OBDASQLQuery sourceQuery, List<Function> targetQuery) {
 		return new RDBMSMappingAxiomImpl(id, sourceQuery, targetQuery);
+	}
+
+	@Override
+	public OBDAMappingAxiom getRDBMSMappingAxiom(OBDASQLQuery sourceQuery, List<Function> targetQuery) {
+		String id = IDGenerator.getNextUniqueID("MAPID-");
+		return getRDBMSMappingAxiom(id, sourceQuery, targetQuery);
 	}
 
 	@Override
 	public SQLQueryImpl getSQLQuery(String query) {
 		return new SQLQueryImpl(query);
-	}
-
-	@Override
-	public OBDARDBMappingAxiom getRDBMSMappingAxiom(String id, String sql, OBDAQuery targetQuery) {
-		return new RDBMSMappingAxiomImpl(id, new SQLQueryImpl(sql), targetQuery);
-	}
-
-	@Override
-	public OBDARDBMappingAxiom getRDBMSMappingAxiom(String sql, OBDAQuery targetQuery) {
-		String id = new String(IDGenerator.getNextUniqueID("MAPID-"));
-		return getRDBMSMappingAxiom(id, sql, targetQuery);
 	}
 
 	
@@ -276,44 +270,24 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 
 	@Override
 	public Function getFunctionEQ(Term firstTerm, Term secondTerm) {
-		return getFunction(OBDAVocabulary.EQ, firstTerm, secondTerm);
-	}
-
-	@Override
-	public Function getFunctionGTE(Term firstTerm, Term secondTerm) {
-		return getFunction(OBDAVocabulary.GTE, firstTerm, secondTerm);
-	}
-
-	@Override
-	public Function getFunctionGT(Term firstTerm, Term secondTerm) {
-		return getFunction(OBDAVocabulary.GT, firstTerm, secondTerm);
-	}
-
-	@Override
-	public Function getFunctionLTE(Term firstTerm, Term secondTerm) {
-		return getFunction(OBDAVocabulary.LTE, firstTerm, secondTerm);
-	}
-
-	@Override
-	public Function getFunctionLT(Term firstTerm, Term secondTerm) {
-		return getFunction(OBDAVocabulary.LT, firstTerm, secondTerm);
+		return getFunction(ExpressionOperation.EQ, firstTerm, secondTerm);
 	}
 
 	@Override
 	public Function getFunctionNEQ(Term firstTerm, Term secondTerm) {
-		return getFunction(OBDAVocabulary.NEQ, firstTerm, secondTerm);
+		return getFunction(ExpressionOperation.NEQ, firstTerm, secondTerm);
 	}
 
 	@Override
 	public Function getFunctionNOT(Term term) {
-		return getFunction(OBDAVocabulary.NOT, term);
+		return getFunction(ExpressionOperation.NOT, term);
 	}
 
 	@Override
 	public Function getFunctionAND(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.AND, term1, term2);
+		return getFunction(ExpressionOperation.AND, term1, term2);
 	}
-
+	
 //	@Override
 //	public Function getANDFunction(List<Term> terms) {
 //		if (terms.size() < 2) {
@@ -336,7 +310,7 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 
 	@Override
 	public Function getFunctionOR(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.OR, term1, term2);
+		return getFunction(ExpressionOperation.OR, term1, term2);
 	}
 
 	
@@ -362,64 +336,54 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 
 	@Override
 	public Function getFunctionIsNull(Term term) {
-		return getFunction(OBDAVocabulary.IS_NULL, term);
+		return getFunction(ExpressionOperation.IS_NULL, term);
 	}
 
 	@Override
 	public Function getFunctionIsNotNull(Term term) {
-		return getFunction(OBDAVocabulary.IS_NOT_NULL, term);
+		return getFunction(ExpressionOperation.IS_NOT_NULL, term);
 	}
 
 
 	@Override
 	public Function getLANGMATCHESFunction(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.SPARQL_LANGMATCHES, term1, term2);
+		return getFunction(ExpressionOperation.LANGMATCHES, term1, term2);
 	}
 
 	@Override
-	public Function getFunctionLike(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.SPARQL_LIKE, term1, term2);
+	public Function getSQLFunctionLike(Term term1, Term term2) {
+		return getFunction(ExpressionOperation.SQL_LIKE, term1, term2);
 	}
 	
 	@Override
 	public Function getFunctionRegex(Term term1, Term term2, Term term3) {
-		return getFunction(OBDAVocabulary.SPARQL_REGEX, term1, term2, term3 );
+		return getFunction(ExpressionOperation.REGEX, term1, term2, term3 );
 	}
 	
 	@Override
 	public Function getFunctionReplace(Term term1, Term term2, Term term3) {
-		return getFunction(OBDAVocabulary.REPLACE, term1, term2, term3 );
+		return getFunction(ExpressionOperation.REPLACE, term1, term2, term3 );
 	}
 	
-	@Override
-	public Function getFunctionMinus(Term term1) {
-		return getFunction(OBDAVocabulary.MINUS, term1);
-	}
-
-	@Override
-	public Function getFunctionAdd(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.ADD, term1, term2);
-	}
-
-	@Override
-	public Function getFunctionSubstract(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.SUBTRACT, term1, term2);
-	}
-
-	@Override
-	public Function getFunctionMultiply(Term term1, Term term2) {
-		return getFunction(OBDAVocabulary.MULTIPLY, term1, term2);
-	}
-
     @Override
     public Function getFunctionConcat(Term term1, Term term2) {
-        return getFunction(OBDAVocabulary.CONCAT, term1, term2);
+        return getFunction(ExpressionOperation.CONCAT, term1, term2);
     }
 
+    @Override
+    public Function getFunctionSubstring(Term term1, Term term2, Term term3) {
+        return getFunction(ExpressionOperation.SUBSTR, term1, term2, term3);
+    } //added by Nika
+
+	@Override
+	public Function getFunctionSubstring(Term term1, Term term2) {
+		return getFunction(ExpressionOperation.SUBSTR, term1, term2);
+	}
+        
 	@Override
 	public Function getFunctionCast(Term term1, Term term2) {
 		// TODO implement cast function
-		return getFunction(OBDAVocabulary.QUEST_CAST, term1, term2);
+		return getFunction(ExpressionOperation.QUEST_CAST, term1, term2);
 	}
 	
 	@Override
@@ -454,16 +418,16 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 
 	@Override
 	public Function getFunctionIsTrue(Term term) {
-		return getFunction(OBDAVocabulary.IS_TRUE, term);
+		return getFunction(ExpressionOperation.IS_TRUE, term);
 	}
 
 	@Override
-	public Function getSPARQLJoin(Term t1, Term t2) {
+	public Function getSPARQLJoin(Function t1, Function t2) {
 		return getFunction(OBDAVocabulary.SPARQL_JOIN, t1, t2);
 	}
 
 	@Override
-	public Function getSPARQLLeftJoin(Term t1, Term t2) {
+	public Function getSPARQLLeftJoin(Function t1, Function t2) {
 		return getFunction(OBDAVocabulary.SPARQL_LEFTJOIN, t1, t2);
 	}
 
@@ -496,10 +460,9 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 	 * <p>
 	 * This method can be used to generate "fresh" rules from a datalog program
 	 * so that it can be used during a resolution step.
-	 * 
-	 * @param rule
-	 * @param suffix
+	 * suffix
 	 *            The integer that will be apended to every variable name
+	 * @param rule
 	 * @return
 	 */
 	@Override
@@ -555,4 +518,9 @@ public class OBDADataFactoryImpl implements OBDADataFactory {
 		}
 		return newTerm;
 	}
+
+
+
+	
+
 }

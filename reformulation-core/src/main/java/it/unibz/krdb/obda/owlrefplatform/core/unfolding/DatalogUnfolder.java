@@ -20,12 +20,13 @@ package it.unibz.krdb.obda.owlrefplatform.core.unfolding;
  * #L%
  */
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import it.unibz.krdb.obda.model.*;
 import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.model.impl.OBDAVocabulary;
 import it.unibz.krdb.obda.model.impl.TermUtils;
 import it.unibz.krdb.obda.owlrefplatform.core.basicoperations.*;
-import it.unibz.krdb.obda.utils.QueryUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,15 +44,13 @@ import java.util.*;
  * 
  * @author mariano
  */
-public class DatalogUnfolder implements UnfoldingMechanism {
-
-	private static final long serialVersionUID = 6088558456135748487L;
+public class DatalogUnfolder {
 
 	private static final OBDADataFactory termFactory = OBDADataFactoryImpl.getInstance();
 
 	private static final Logger log = LoggerFactory.getLogger(DatalogUnfolder.class);
 
-	private final Map<Predicate, List<Integer>> primaryKeys;
+	private final Multimap<Predicate, List<Integer>> primaryKeys;
 
 	private final Map<Predicate, List<CQIE>> ruleIndex = new LinkedHashMap<>();
 
@@ -66,11 +65,15 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	 */
 	private final Set<Predicate> extensionalPredicates = new HashSet<>();
 
+	// LeftJoinUnfoldingTest only
+	
 	public DatalogUnfolder(List<CQIE> unfoldingProgram) {
-		this(unfoldingProgram, Collections.<Predicate, List<Integer>> emptyMap());
+		this(unfoldingProgram, HashMultimap.<Predicate, List<Integer>>create());
 	}
 
-	public DatalogUnfolder(List<CQIE> unfoldingProgram, Map<Predicate, List<Integer>> primaryKeys) {
+	// QuestUnfilder only 
+	
+	public DatalogUnfolder(List<CQIE> unfoldingProgram, Multimap<Predicate, List<Integer>> primaryKeys) {
 		this.primaryKeys = primaryKeys;
 		
 		// Creating a local index for the rules according to their predicate
@@ -97,14 +100,15 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	}
 
 	private final void collectPredicates(Set<Predicate> predicates, Function atom) {
-		Predicate pred = atom.getFunctionSymbol();
-		if (pred instanceof AlgebraOperatorPredicate) {
+		if (atom.isAlgebraFunction()) {
 			for (Term innerTerm : atom.getTerms()) 
 				if (innerTerm instanceof Function)
 					collectPredicates(predicates, (Function) innerTerm);
 		} 
-		else if (!(pred instanceof BooleanOperationPredicate))
+		else if (!(atom.isOperation())) {
+			Predicate pred = atom.getFunctionSymbol();
 			predicates.add(pred);
+		}
 	}
 
 	/***
@@ -169,10 +173,8 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	 * with respect to the program given when this unfolder was initialized. The goal for
 	 * this partial evaluation is the predicate <b>ans1</b>
 	 * 
-	 * @param targetPredicate IS IGNORED
 	 */
-	@Override
-	public DatalogProgram unfold(DatalogProgram inputquery, String targetPredicate) {
+	public DatalogProgram unfold(DatalogProgram inputquery) {
 
 		List<CQIE> workingSet = new LinkedList<>();
 		for (CQIE query : inputquery.getRules()) 
@@ -185,9 +187,11 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 		
 		// We need to enforce equality again, because at this point it is 
 		//  possible that there is still some EQ(...) 
-		for (CQIE query : workingSet)
+		for (CQIE query : workingSet) {
 			EQNormalizer.enforceEqualities(query);
-
+			UniqueConstraintOptimizer.selfJoinElimination(query, primaryKeys);
+		}
+			
 		DatalogProgram result = termFactory.getDatalogProgram(inputquery.getQueryModifiers());
 		result.appendRule(workingSet);
 
@@ -927,9 +931,7 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	 * otherwise it does nothing (i.e., variables, constants, etc cannot be
 	 * resolved against rule
 	 * 
-	 * @param resolvent
-	 * @param term
-	 * @param termidx
+
 	 * @return
 	 */
 	private void computePartialEvaluation(List<CQIE> workingList) {
@@ -1055,7 +1057,7 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	 * <li>Create a clone r' of r</li>
 	 * <li>We replace a in r' with the body of s
 	 * <li>
-	 * <li>We apply mgu to r' (see {@link UnifierUtilities#applyUnifier(CQIE, Map)})</li>
+	 * <li>We apply mgu to r' (see {@link UnifierUtilities#applyUnifier(it.unibz.krdb.obda.model.CQIE, it.unibz.krdb.obda.owlrefplatform.core.basicoperations.Unifier)} )</li>
 	 * <li>return r'
 	 * </ul>
 	 * 
@@ -1206,7 +1208,7 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	 * <p>
 	 * Note the meaning of NULL in this method is different than the meaning of
 	 * null and empty list in
-	 * {@link #resolveDataAtom(Function, CQIE, Stack, int[], boolean)} which is
+	 * {@link #resolveDataAtom(it.unibz.krdb.obda.model.Function, it.unibz.krdb.obda.model.CQIE, java.util.Stack, int[], boolean, boolean)}  which is
 	 * the caller method. The job of interpreting correctly the output of this
 	 * method is done in the caller.
 	 * 
@@ -1418,7 +1420,6 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 	 *            The CQIE currently being optimized, i.e., the result of the
 	 *            resolution step.
 	 * 
-	 * @param innerAtoms
 	 */
 	private void joinEliminationPKBased(Stack<Integer> termidx, int newatomcount, CQIE partialEvalution) {
 
@@ -1445,64 +1446,59 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 			if (!newatom.isDataFunction())
 				continue;
 
-			List<Integer> pkey = primaryKeys.get(newatom.getFunctionSymbol());
-			if (!(pkey != null && !pkey.isEmpty())) {
-				// no pkeys for this predicate
-				continue;
-			}
-			/*
-			 * the predicate has a primary key, looking for candidates for
-			 * unification, when we find one we can stop, since the application
-			 * of this optimization at each step of the derivation tree
-			 * guarantees there wont be any other redundant atom.
-			 */
-			Function replacement = null;
+			Collection<List<Integer>> pKeys = primaryKeys.get(newatom.getFunctionSymbol());
 
-			Substitution mgu1 = null;
-			for (int idx2 = 0; idx2 < termidx.peek(); idx2++) {
-				Function tempatom =  innerAtoms.get(idx2);
+            for(List<Integer> pKey : pKeys){
+                // no pkeys for this predicate
+                if (pKey == null || pKey.isEmpty()) 
+                    continue;
+                
+                /*
+                 * the predicate has a primary key, looking for candidates for
+                 * unification, when we find one we can stop, since the application
+                 * of this optimization at each step of the derivation tree
+                 * guarantees there wont be any other redundant atom.
+                 */
+				Substitution mgu = null;
+				
+                for (int idx2 = 0; idx2 < termidx.peek(); idx2++) {
+                    Function tempatom = innerAtoms.get(idx2);
 
-				if (!tempatom.getFunctionSymbol().equals(newatom.getFunctionSymbol())) {
-					/*
-					 * predicates are different, atoms cant be unified
-					 */
+                    // predicates are different, atoms cannot be unified
+                    if (!tempatom.getFunctionSymbol().equals(newatom.getFunctionSymbol())) 
+                        continue;
+                    
+
+                    boolean redundant = true;
+                    for (Integer termidx2 : pKey) {
+                        if (!newatom.getTerm(termidx2 - 1).equals(tempatom.getTerm(termidx2 - 1))) {
+                            redundant = false;
+                            break;
+                        }
+                    }
+                    
+                    if (redundant) {
+                        // found a candidate replacement atom */
+                        mgu = UnifierUtilities.getMGU(newatom, tempatom);
+                        if (mgu != null) 
+                            break;
+                    }
+
+                }
+
+                if (mgu == null)
+                    continue;
+
+				if (currentAtom.isAlgebraFunction() && (currentAtom.getFunctionSymbol() == OBDAVocabulary.SPARQL_LEFTJOIN)) {
 					continue;
-				}
+                }
 
-				boolean redundant = true;
-				for (Integer termidx2 : pkey) {
-					if (!newatom.getTerm(termidx2 - 1).equals(tempatom.getTerm(termidx2 - 1))) {
-						redundant = false;
-						break;
-					}
-				}
-
-				if (redundant) {
-					/* found a candidate replacement atom */
-					mgu1 = UnifierUtilities.getMGU(newatom, tempatom);
-					if (mgu1 != null) {
-						replacement = tempatom;
-						break;
-					}
-				}
-
-			}
-
-			if (replacement == null)
-				continue;
-
-			if (mgu1 == null)
-				throw new RuntimeException("Unexpected case found while performing JOIN elimination. Contact the authors for debugging.");
-
-			if (currentAtom.isAlgebraFunction() && (currentAtom.getFunctionSymbol() == OBDAVocabulary.SPARQL_LEFTJOIN)) {
-				continue;
-			}
-
-			SubstitutionUtilities.applySubstitution(partialEvalution, mgu1, false);
-			innerAtoms.remove(newatomidx);
-			newatomidx -= 1;
-			newatomcount -= 1;
-
+				SubstitutionUtilities.applySubstitution(partialEvalution, mgu, false);
+                innerAtoms.remove(newatomidx);
+                newatomidx -= 1;
+                newatomcount -= 1;
+                break;
+            }
 		}
 
 		/***
@@ -1539,10 +1535,7 @@ public class DatalogUnfolder implements UnfoldingMechanism {
 			for (int newatomidx = 0; newatomidx < innerAtoms.size(); newatomidx++) {
 
 				Function newatom = innerAtoms.get(newatomidx);
-				if (!newatom.isBooleanFunction())
-					continue;
-
-				if (!newatom.getFunctionSymbol().equals(OBDAVocabulary.IS_NOT_NULL))
+				if (newatom.getFunctionSymbol() != ExpressionOperation.IS_NOT_NULL)
 					continue;
 
 				Function replacement = null;

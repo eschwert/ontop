@@ -22,17 +22,11 @@ package it.unibz.krdb.obda.quest.dag;
 
 
 import it.unibz.krdb.obda.ontology.Ontology;
-import it.unibz.krdb.obda.owlapi3.OWLAPI3TranslatorUtility;
+import it.unibz.krdb.obda.owlapi3.OWLAPITranslatorUtility;
 import it.unibz.krdb.obda.owlrefplatform.core.dagjgrapht.TBoxReasoner;
 import it.unibz.krdb.obda.owlrefplatform.core.dagjgrapht.TBoxReasonerImpl;
-
-import java.io.File;
-
 import org.junit.Before;
 import org.junit.Test;
-import org.semanticweb.owlapi.apibinding.OWLManager;
-import org.semanticweb.owlapi.model.OWLOntology;
-import org.semanticweb.owlapi.model.OWLOntologyManager;
 
 
 /* 
@@ -47,24 +41,14 @@ public class DAGLoopTest {
 	Ontology onto;
 	@Before
 	public void setUp() throws Exception {
-		
-		OWLOntologyManager man = OWLManager.createOWLOntologyManager();
-		OWLOntology owlonto = man.loadOntologyFromOntologyDocument(new File("src/test/resources/test/dag/final_project_original.owl"));
-		
-		onto = OWLAPI3TranslatorUtility.translate(owlonto);
-
+		onto = OWLAPITranslatorUtility.loadOntologyFromFile("src/test/resources/test/dag/final_project_original.owl");
 	}
 
 	
 
 	@Test
 	public void testLoop() throws Exception {
-		
 		// generate DAG
-		TBoxReasoner dag = new TBoxReasonerImpl(onto);
-
-		
+		TBoxReasoner dag = TBoxReasonerImpl.create(onto);
 	}
-
-
 }

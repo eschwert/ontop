@@ -20,9 +20,6 @@ package it.unibz.krdb.odba;
  * #L%
  */
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import it.unibz.krdb.obda.io.ModelIOManager;
 import it.unibz.krdb.obda.model.OBDADataFactory;
 import it.unibz.krdb.obda.model.OBDADataSource;
@@ -30,26 +27,21 @@ import it.unibz.krdb.obda.model.OBDAModel;
 import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestConstants;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestPreferences;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWL;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLConnection;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLFactory;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLResultSet;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLStatement;
-
-import java.io.File;
-import java.net.URI;
-import java.sql.Connection;
-import java.util.Properties;
-
+import it.unibz.krdb.obda.owlrefplatform.owlapi3.*;
 import it.unibz.krdb.obda.r2rml.R2RMLReader;
 import org.junit.Before;
 import org.junit.Test;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyManager;
-import org.semanticweb.owlapi.reasoner.SimpleConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.net.URI;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test if the datatypes are assigned correctly.
@@ -59,10 +51,9 @@ import org.slf4j.LoggerFactory;
  * 
  */
 
-public class OntologyTypesTest{
+public class OntologyTypesTest {
 
 	private OBDADataFactory fac;
-	private Connection conn;
 
 	Logger log = LoggerFactory.getLogger(this.getClass());
 	private OBDAModel obdaModel;
@@ -81,20 +72,14 @@ public class OntologyTypesTest{
 		// Loading the OWL file
 		OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
 		ontology = manager.loadOntologyFromOntologyDocument((new File(owlFile)));
-
-
-		
 	}
 
-	private void runTests(Properties p, String query, int numberResults) throws Exception {
+	private void runTests(QuestPreferences p, String query, int numberResults) throws Exception {
 
 		// Creating a new instance of the reasoner
 		QuestOWLFactory factory = new QuestOWLFactory();
-		factory.setOBDAController(obdaModel);
-
-		factory.setPreferenceHolder(p);
-
-		QuestOWL reasoner = (QuestOWL) factory.createReasoner(ontology, new SimpleConfiguration());
+        QuestOWLConfiguration config = QuestOWLConfiguration.builder().obdaModel(obdaModel).preferences(p).build();
+        QuestOWL reasoner = factory.createReasoner(ontology, config);
 
 		// Now we are ready for querying
 		QuestOWLConnection conn = reasoner.getConnection();
@@ -145,7 +130,6 @@ public class OntologyTypesTest{
 		QuestPreferences p = new QuestPreferences();
 		p.setCurrentValueOf(QuestPreferences.ABOX_MODE, QuestConstants.VIRTUAL);
 		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_EQUIVALENCES, "true");
-		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_TBOX_SIGMA, "true");
 		
 		//no value in the mapping
 		//xsd:long in the ontology, asking for the general case we will not have any result
@@ -212,7 +196,6 @@ public class OntologyTypesTest{
         QuestPreferences p = new QuestPreferences();
         p.setCurrentValueOf(QuestPreferences.ABOX_MODE, QuestConstants.VIRTUAL);
         p.setCurrentValueOf(QuestPreferences.OPTIMIZE_EQUIVALENCES, "true");
-        p.setCurrentValueOf(QuestPreferences.OPTIMIZE_TBOX_SIGMA, "true");
 
         OBDADataFactory f = OBDADataFactoryImpl.getInstance();
         // String sourceUrl = "http://example.org/customOBDA";
@@ -223,9 +206,6 @@ public class OntologyTypesTest{
 
         log.info("Loading r2rml file");
         // Creating a new instance of the reasoner
-        QuestOWLFactory factory = new QuestOWLFactory();
-
-        factory.setPreferenceHolder(p);
 
         R2RMLReader reader = new R2RMLReader(r2rmlFile);
 
@@ -296,16 +276,13 @@ public class OntologyTypesTest{
 		QuestPreferences p = new QuestPreferences();
 		p.setCurrentValueOf(QuestPreferences.ABOX_MODE, QuestConstants.VIRTUAL);
 		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_EQUIVALENCES, "true");
-		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_TBOX_SIGMA, "true");
 		
 		try {
 			// Creating a new instance of the reasoner
-			QuestOWLFactory factory = new QuestOWLFactory();
-			factory.setOBDAController(obdaModel);
+	        QuestOWLFactory factory = new QuestOWLFactory();
+	        QuestOWLConfiguration config = QuestOWLConfiguration.builder().obdaModel(obdaModel).preferences(p).build();
+	        QuestOWL reasoner = factory.createReasoner(ontology, config);
 
-			factory.setPreferenceHolder(p);
-
-			QuestOWL reasoner = factory.createReasoner(ontology, new SimpleConfiguration());
 			
 		} catch (Exception e) {
            

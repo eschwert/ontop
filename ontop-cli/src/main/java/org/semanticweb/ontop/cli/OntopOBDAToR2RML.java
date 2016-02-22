@@ -1,11 +1,14 @@
 package org.semanticweb.ontop.cli;
 
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.OptionType;
+import com.github.rvesse.airline.annotations.help.BashCompletion;
+import com.github.rvesse.airline.annotations.restrictions.Required;
+import com.github.rvesse.airline.help.cli.bash.CompletionBehaviour;
 import com.google.common.base.Strings;
 import com.hp.hpl.jena.rdf.model.Model;
 import com.hp.hpl.jena.rdf.model.ModelFactory;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-import io.airlift.airline.OptionType;
 import it.unibz.krdb.obda.exception.InvalidMappingException;
 import it.unibz.krdb.obda.io.ModelIOManager;
 import it.unibz.krdb.obda.model.OBDAModel;
@@ -27,15 +30,20 @@ import java.net.URI;
 public class OntopOBDAToR2RML implements OntopCommand {
 
     @Option(type = OptionType.COMMAND, name = {"-i", "--input"}, title = "mapping.obda",
-            description = "Input mapping file in Ontop native format (.obda)", required = true)
+            description = "Input mapping file in Ontop native format (.obda)")
+    @Required
+    @BashCompletion(behaviour = CompletionBehaviour.FILENAMES)
+
     protected String inputMappingFile;
 
     @Option(type = OptionType.COMMAND, name = {"-t", "--ontology"}, title = "ontology.owl",
             description = "OWL ontology file")
+    @BashCompletion(behaviour = CompletionBehaviour.FILENAMES)
     protected String owlFile;
 
     @Option(type = OptionType.COMMAND, name = {"-o", "--output"}, title = "mapping.ttl",
             description = "Output mapping file in R2RML format (.ttl)")
+    @BashCompletion(behaviour = CompletionBehaviour.FILENAMES)
     protected String outputMappingFile;
 
     @Override

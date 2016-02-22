@@ -27,21 +27,19 @@ import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestConstants;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestPreferences;
 import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWL;
+import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLConfiguration;
 import it.unibz.krdb.obda.owlrefplatform.owlapi3.QuestOWLFactory;
 import org.junit.Before;
 import org.junit.Test;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyManager;
-import org.semanticweb.owlapi.reasoner.SimpleConfiguration;
+import org.semanticweb.owlapi.reasoner.ReasonerInternalException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.sql.Connection;
-import java.util.Properties;
-
-import static org.junit.Assert.assertFalse;
 
 /**
  * Test mysql jdbc driver.
@@ -79,32 +77,24 @@ public class ConferenceMySQLTest {
 		
 	}
 
-	private void runTests(Properties p, String query1) throws Exception {
+	private void runTests(QuestPreferences p, String query) throws Exception {
 
-		// Creating a new instance of the reasoner
-		QuestOWLFactory factory = new QuestOWLFactory();
-		factory.setOBDAController(obdaModel);
-
-		factory.setPreferenceHolder(p);
-		QuestOWL reasoner=null;
-		try{
-		 reasoner = (QuestOWL) factory.createReasoner(ontology, new SimpleConfiguration());
-		} catch (Exception ne) {
-			assertFalse(false);
-		}
+        // Creating a new instance of the reasoner
+        QuestOWLFactory factory = new QuestOWLFactory();
+        QuestOWLConfiguration config = QuestOWLConfiguration.builder().obdaModel(obdaModel).preferences(p).build();
+        QuestOWL reasoner = factory.createReasoner(ontology, config);
 
 	}
 	
 
 
 
-	@Test
+	@Test(expected = ReasonerInternalException.class)
 	public void testWrongMappings() throws Exception {
 
 		QuestPreferences p = new QuestPreferences();
 		p.setCurrentValueOf(QuestPreferences.ABOX_MODE, QuestConstants.VIRTUAL);
 		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_EQUIVALENCES, "true");
-		p.setCurrentValueOf(QuestPreferences.OPTIMIZE_TBOX_SIGMA, "true");
 
         String query1 = "PREFIX : <http://myproject.org/odbs#> SELECT ?x ?y\n" +
                 "WHERE {\n" +

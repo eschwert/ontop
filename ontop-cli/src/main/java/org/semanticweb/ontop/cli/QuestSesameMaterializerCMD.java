@@ -25,26 +25,17 @@ import it.unibz.krdb.obda.io.ModelIOManager;
 import it.unibz.krdb.obda.model.OBDAModel;
 import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.ontology.Ontology;
-import it.unibz.krdb.obda.owlapi3.OWLAPI3TranslatorUtility;
+import it.unibz.krdb.obda.owlapi3.OWLAPITranslatorUtility;
 import it.unibz.krdb.obda.r2rml.R2RMLReader;
 import it.unibz.krdb.obda.sesame.SesameStatementIterator;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
-import java.net.URI;
-
 import org.openrdf.rio.RDFHandler;
 import org.openrdf.rio.n3.N3Writer;
 import org.openrdf.rio.rdfxml.RDFXMLWriter;
 import org.openrdf.rio.turtle.TurtleWriter;
-import org.semanticweb.owlapi.apibinding.OWLManager;
-import org.semanticweb.owlapi.model.OWLOntology;
-import org.semanticweb.owlapi.model.OWLOntologyManager;
 import sesameWrapper.SesameMaterializer;
+
+import java.io.*;
+import java.net.URI;
 
 /**
  * @deprecated Use {@code QuestOWLMaterialzerCMD}  instead
@@ -109,19 +100,12 @@ class QuestSesameMaterializerCMD {
 			
 			//create onto
 			Ontology onto = null;
-			OWLOntology ontology = null;
-			OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
 			
 			if (owlFile != null) {
 			// Loading the OWL ontology from the file as with normal OWLReasoners
-				ontology = manager.loadOntologyFromOntologyDocument((new File(owlFile)));
-				 onto =  OWLAPI3TranslatorUtility.translate(ontology);
-				 model.declareAll(onto.getVocabulary());
+				 onto =  OWLAPITranslatorUtility.loadOntologyFromFile(owlFile);
+				 model.getOntologyVocabulary().merge(onto.getVocabulary());
 			}
-			else {
-				ontology = manager.createOntology();
-			}
-			//OBDAModelSynchronizer.declarePredicates(ontology, model);
 
 			 //start materializer
 			SesameMaterializer materializer = new SesameMaterializer(model, onto, DO_STREAM_RESULTS);

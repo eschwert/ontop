@@ -25,14 +25,13 @@ import it.unibz.krdb.obda.model.OBDADataFactory;
 import it.unibz.krdb.obda.model.OBDAModel;
 import it.unibz.krdb.obda.model.impl.OBDADataFactoryImpl;
 import it.unibz.krdb.obda.owlapi3.QuestOWLIndividualAxiomIterator;
-import it.unibz.krdb.obda.owlrefplatform.owlapi3.OWLAPI3Materializer;
+import it.unibz.krdb.obda.owlrefplatform.owlapi3.OWLAPIMaterializer;
+import org.semanticweb.owlapi.model.OWLIndividualAxiom;
 
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
-
-import org.semanticweb.owlapi.model.OWLIndividualAxiom;
 
 /**
  * A very simple example that shows how to generate triples in an N-Triple file,
@@ -65,7 +64,7 @@ public class ABoxMaterializerExample {
 		 */
 
 		// TODO: try the streaming mode.
-		OWLAPI3Materializer materializer = new OWLAPI3Materializer(obdaModel, false);
+		try (OWLAPIMaterializer materializer = new OWLAPIMaterializer(obdaModel, false)) {
 		
 		long numberOfTriples = materializer.getTriplesCount();
 		System.out.println("Generated triples: " + numberOfTriples);
@@ -83,19 +82,13 @@ public class ABoxMaterializerExample {
 			fout.delete(); // clean any existing output file.
 		}
 		
-		PrintWriter out = null;
-		try {
-		    out = new PrintWriter(new BufferedWriter(new FileWriter(fout, true)));
+		try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(fout, true)))) {
 			while (triplesIter.hasNext()) {
 				OWLIndividualAxiom individual = triplesIter.next();
 				out.println(individual.toString());
 			}
 			out.flush();
-		} finally {
-		    if (out != null) {
-		    	out.close();
-		    }
-		    materializer.disconnect();
+		} 
 		}
 	}
 

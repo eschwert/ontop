@@ -27,13 +27,20 @@ import it.unibz.krdb.obda.ontology.Assertion;
 import it.unibz.krdb.obda.ontology.ClassAssertion;
 import it.unibz.krdb.obda.ontology.DataPropertyAssertion;
 import it.unibz.krdb.obda.ontology.ObjectPropertyAssertion;
-import it.unibz.krdb.obda.owlapi3.OWLAPI3ABoxIterator;
-import it.unibz.krdb.obda.owlapi3.OWLAPI3IndividualTranslator;
+import it.unibz.krdb.obda.owlapi3.OWLAPIABoxIterator;
+import it.unibz.krdb.obda.owlapi3.OWLAPIIndividualTranslator;
 import it.unibz.krdb.obda.owlapi3.OntopOWLException;
 import it.unibz.krdb.obda.owlrefplatform.core.QuestStatement;
 import it.unibz.krdb.obda.owlrefplatform.core.queryevaluation.SPARQLQueryUtility;
-import it.unibz.krdb.obda.owlrefplatform.core.translator.SparqlAlgebraToDatalogTranslator;
 import it.unibz.krdb.obda.sesame.SesameRDFIterator;
+import org.openrdf.query.parser.ParsedQuery;
+import org.openrdf.rio.ParserConfig;
+import org.openrdf.rio.RDFFormat;
+import org.openrdf.rio.RDFParser;
+import org.openrdf.rio.Rio;
+import org.openrdf.rio.helpers.BasicParserSettings;
+import org.semanticweb.owlapi.apibinding.OWLManager;
+import org.semanticweb.owlapi.model.*;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -44,22 +51,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-
-import org.openrdf.query.QueryLanguage;
-import org.openrdf.query.parser.ParsedQuery;
-import org.openrdf.query.parser.QueryParser;
-import org.openrdf.query.parser.QueryParserUtil;
-import org.openrdf.rio.ParserConfig;
-import org.openrdf.rio.RDFFormat;
-import org.openrdf.rio.RDFParser;
-import org.openrdf.rio.Rio;
-import org.openrdf.rio.helpers.BasicParserSettings;
-import org.semanticweb.owlapi.apibinding.OWLManager;
-import org.semanticweb.owlapi.model.OWLAxiom;
-import org.semanticweb.owlapi.model.OWLException;
-import org.semanticweb.owlapi.model.OWLOntology;
-import org.semanticweb.owlapi.model.OWLOntologyCreationException;
-import org.semanticweb.owlapi.model.OWLOntologyManager;
 
 /***
  * A Statement to execute queries over a QuestOWLConnection. The logic of this
@@ -152,10 +143,7 @@ public class QuestOWLStatement implements AutoCloseable {
 
 			// Retrieves the ABox from the ontology file.
 
-			aBoxIter = new OWLAPI3ABoxIterator(set);
-			// TODO: (ROMAN) -- check whether we need to use 
-			// EquivalentTriplePredicateIterator newData = new EquivalentTriplePredicateIterator(aBoxIter, equivalenceMaps);
-
+			aBoxIter = new OWLAPIABoxIterator(set, st.questInstance.getVocabulary());
 			return st.insertData(aBoxIter, commitSize, batchsize);
 		} 
 		else if (owlFile.getName().toLowerCase().endsWith(".ttl") || owlFile.getName().toLowerCase().endsWith(".nt")) {
@@ -200,24 +188,12 @@ public class QuestOWLStatement implements AutoCloseable {
 
 				return processor.getInsertCount();
 
-			} catch (RuntimeException e) {
+			} catch (RuntimeException | InterruptedException e) {
 				// System.out.println("exception, rolling back!");
 
 				if (autoCommit) {
 					conn.rollBack();
 				}
-				throw e;
-			} catch (OBDAException e) {
-
-				if (autoCommit) {
-					conn.rollBack();
-				}
-				throw e;
-			} catch (InterruptedException e) {
-				if (autoCommit) {
-					conn.rollBack();
-				}
-
 				throw e;
 			} finally {
 				conn.setAutoCommit(autoCommit);
@@ -356,7 +332,7 @@ public class QuestOWLStatement implements AutoCloseable {
 		}
 	}
 
-	public int getTupleCount(String query) throws OWLException {
+	public long getTupleCount(String query) throws OWLException {
 		try {
 			return st.getTupleCount(query);
 		} catch (Exception e) {
@@ -366,14 +342,8 @@ public class QuestOWLStatement implements AutoCloseable {
 
 	public String getRewriting(String query) throws OWLException {
 		try {
-			//Query jenaquery = QueryFactory.create(query);
-			QueryParser qp = QueryParserUtil.createParser(QueryLanguage.SPARQL);
-			ParsedQuery pq = qp.parseQuery(query, null); // base URI is null
-			
-			//SparqlAlgebraToDatalogTranslator tr = st.questInstance.getSparqlAlgebraToDatalogTranslator();	
-			//List<String> signatureContainer = tr.getSignature(pq);
-			
-			return st.getRewriting(pq/*, signatureContainer*/);
+			ParsedQuery pq = st.questInstance.getEngine().getParsedQuery(query); 			
+			return st.questInstance.getEngine().getRewriting(pq);
 		} 
 		catch (Exception e) {
 			throw new OntopOWLException(e);
@@ -382,15 +352,17 @@ public class QuestOWLStatement implements AutoCloseable {
 
 	public String getUnfolding(String query) throws OWLException {
 		try {
-			return st.getUnfolding(query);
-		} catch (Exception e) {
+			ParsedQuery pq = st.questInstance.getEngine().getParsedQuery(query); 			
+			return st.questInstance.getEngine().getSQL(pq);
+		} 
+		catch (Exception e) {
 			throw new OntopOWLException(e);
 		}
 	}
 
 	private List<OWLAxiom> createOWLIndividualAxioms(GraphResultSet resultSet) throws Exception {
 		
-		OWLAPI3IndividualTranslator translator = new OWLAPI3IndividualTranslator();
+		OWLAPIIndividualTranslator translator = new OWLAPIIndividualTranslator();
 		
 		List<OWLAxiom> axiomList = new ArrayList<OWLAxiom>();
 		if (resultSet != null) {
@@ -412,25 +384,6 @@ public class QuestOWLStatement implements AutoCloseable {
 			}
 		}
 		return axiomList;
-	}
-
-
-	
-	// Davide> Benchmarking
-	public long getUnfoldingTime(){
-		return st.getUnfoldingTime();
-	}
-
-	public long getRewritingTime(){
-		return st.getRewritingTime();
-	}
-	
-	public int getUCQSizeAfterUnfolding(){
-		return st.getUCQSizeAfterUnfolding();
-	}
-	
-	public int getUCQSizeAfterRewriting(){
-		return st.getUCQSizeAfterRewriting();
 	}
 
 }
